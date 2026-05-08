@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { Test } from "../../../lib/models/TestAttempt";
-import { connectToMongodb } from "../../../lib/mongodb"
+import { connectToMongodb } from "../../../lib/mongodb";
 
 export const GET = async (request: NextRequest) => {
     await connectToMongodb();
