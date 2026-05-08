@@ -1,6 +1,7 @@
-import { pgTable, text, varchar, uuid, jsonb, char, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, text, varchar, uuid, jsonb, char, timestamp } from "drizzle-orm/pg-core";
+
 export const questions = pgTable('question', {
-    id: uuid().defaultRandom().primaryKey(),
+    id: uuid('id').defaultRandom().primaryKey(),
     subject: varchar('subject', { length: 50 }).notNull(),
     topic: varchar('topic', { length: 100 }).notNull(),
     question: text('question').notNull(),
@@ -12,3 +13,11 @@ export const questions = pgTable('question', {
     hash: text('hash').unique(),
     createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const users = pgTable('users', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    displayName: varchar('displayName', { length: 40 }).notNull(),
+    username: varchar('username', { length: 40 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+})
+

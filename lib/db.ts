@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { drizzle } from "drizzle-orm/node-postgres"
 import { Pool } from "pg";
 
@@ -9,4 +10,3 @@ if (!connectionString) {
 
 const client = new Pool({ connectionString });
 export const db = drizzle(client);
-
