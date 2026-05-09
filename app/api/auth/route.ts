@@ -7,7 +7,17 @@ import { users } from "../../../lib/schema";
 const registerSchema = z.object({
     displayName: z.string().min(1),
     username: z.string().min(3).max(40).regex(/^[a-zA-Z0-9]+$/)
-})
+});
+
+export const OPTIONS = async () => {
+    return NextResponse.json({}, {
+        headers: {
+            'Access-Control-Allow-Origin': "http://localhost:3001",
+            'Access-Control-Allow-Methods': "GET,POST,OPTIONS",
+            'Access-Control-Allow-Headers': "Content-Type",
+        },
+    });
+};
 
 export const POST = async (request: NextRequest) => {
     try {
@@ -18,10 +28,25 @@ export const POST = async (request: NextRequest) => {
         }
         const result = await db.insert(users).values(body).returning();
         const { id, username, displayName } = result[0];
-        return NextResponse.json({ status: "ok", id, username, displayName, timestamp: new Date() });
+        return NextResponse.json(
+            {
+                status: "ok"
+                , id, username, displayName,
+            },
+            {
+                headers: {
+                    'Access-Control-Allow-Origin': "http://localhost:3001",
+                }
+            }
+        );
     }
     catch (e) {
-        return NextResponse.json({ error: "Invalid input" }, { status: 400 })
+        return NextResponse.json({ error: "Invalid input" }, {
+            status: 400,
+            headers: {
+                'Access-Control-Allow-Origin': "http://localhost:3001",
+            }
+        })
     }
 }
 
@@ -34,5 +59,15 @@ export const GET = async (request: NextRequest) => {
     if (!newUser[0]) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    return NextResponse.json({ status: "ok", user: newUser[0], timestamp: new Date() });
+    return NextResponse.json(
+        {
+            status: "ok", user: newUser[0]
+
+        },
+        {
+            headers: {
+                'Access-Control-Allow-Origin': "http://localhost:3001",
+            }
+        }
+    );
 }
