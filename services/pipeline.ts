@@ -1,8 +1,9 @@
 import groq from "../lib/groq";
 import { QuestionSchema, type Question } from "../types/question";
+import { auditGeneratedQuestions } from "./auditor";
 
 export async function generateBatch(topic: string, count: number = 25): Promise<Question[]> {
-    const prompt = `Generate exactly ${count} multiple choice questions for the topic: "${topic}".
+    const prompt = `Generate exactly ${count} multiple choice Hard and Advance questions for the topic: "${topic}".
 
 STRICT FORMAT:
 - Return ONLY valid JSON array, no preamble or markdown
@@ -35,9 +36,7 @@ Now generate exactly ${count} questions as a JSON array:`;
         });
 
         const content = response.choices[0].message.content || "";
-        console.log("Raw response length:", content.length);
-        console.log("First 500 chars:", content.slice(0, 500));
-        console.log("Last 500 chars:", content.slice(-500));
+
         let jsonString = content.trim();
         if (jsonString.startsWith("```json")) {
             jsonString = jsonString.slice(7);
@@ -57,12 +56,17 @@ Now generate exactly ${count} questions as a JSON array:`;
             return [];
         }
 
-
-
         for (const q of parsed) {
             try {
                 const valid = QuestionSchema.parse(q);
-                validated.push(valid);
+                const answerIs = await auditGeneratedQuestions(valid);
+                console.log("gemini' judgemnet", answerIs);
+                if (answerIs === "PASS") {
+                    validated.push(valid);
+                } else {
+                    failed.push(valid);
+                }
+                console.log("Vetted ration", (failed.length / validated.length) * 100 + "%")
             } catch (err) {
                 console.log("Question validation failed", q, err);
                 failed.push(q);
@@ -76,7 +80,7 @@ Now generate exactly ${count} questions as a JSON array:`;
 }
 
 (async () => {
-    const questions = await generateBatch("Indian Polity", 25);  // Start with 5 for testing
+    const questions = await generateBatch("Math", 20);
     console.log(JSON.stringify(questions, null, 2));
     console.log("questionlength", questions.length);
 })();
