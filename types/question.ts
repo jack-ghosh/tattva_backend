@@ -10,7 +10,7 @@ export const QuestionSchema = z.object({
         b: z.string(),
         c: z.string(),
         d: z.string(),
-    }),
+    }).strict(),
     correctAns: z.enum(["a", "b", "c", "d"]),
     explanation: z.string(),
     difficulty: z.enum(["EASY", "MEDIUM", "HARD"]),
@@ -19,6 +19,6 @@ export const QuestionSchema = z.object({
     ]).optional(),
     hash: z.string().optional(),
     createdAt: z.string().optional(),
-});
+}).strict();
 
 export type Question = z.infer<typeof QuestionSchema>;
