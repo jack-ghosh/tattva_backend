@@ -1,30 +1,46 @@
 import groq from "../lib/groq";
+import crypto from 'crypto';
+import { db } from "../lib/db";
+import { questions } from "../lib/schema.js";
 import { QuestionSchema, type Question } from "../types/question";
 import { auditGeneratedQuestions } from "./auditor";
 
-export async function generateBatch(topic: string, count: number = 25): Promise<Question[]> {
-    const prompt = `Generate exactly ${count} multiple choice Hard and Advance questions for the topic: "${topic}".
+export async function generateQuestionBatch(
+    topic: string,
+    count: number = 25,
+    subject: string = "General"
+): Promise<Question[]> {
+    const prompt = `You are an expert question setter for the RRB NTPC UG (Railway Recruitment Board Non-Technical Popular Categories Undergraduate) competitive exam in India.
+
+Generate exactly ${count} multiple choice questions for the topic: "${topic}" under the subject: "${subject}".
+
+EXAM CONTEXT:
+- Candidates are 12th pass / undergraduate level
+- Questions test conceptual clarity and application, NOT advanced theory
+- Difficulty mix: 30% EASY, 50% MEDIUM, 20% HARD
+- EASY = direct fact or formula application
+- MEDIUM = 2-step reasoning or application
+- HARD = multi-step problem or tricky distractor
 
 STRICT FORMAT:
-- Return ONLY valid JSON array, no preamble or markdown
+- Return ONLY a valid JSON array, no preamble or markdown
 - No code fences, no explanation before or after
-- Each question: subject (topic area), topic (specific subtopic), question (the Q text), options {a/b/c/d}, correctAns (a/b/c/d), explanation, difficulty (EASY/MEDIUM/HARD)
+- Each object must have: subject, topic, question, options {a,b,c,d}, correctAns (a/b/c/d), explanation, difficulty (EASY/MEDIUM/HARD)
 
-CRITICAL DISTRACTORS: If correct answer is a date/number/fact, make distractors plausible (off by 1, similar, adjacent years). NOT obviously wrong.
+CRITICAL DISTRACTORS: Make distractors plausible — off by 1 year, adjacent values, common misconceptions. Never use obviously wrong options.
 
-ONE example:
+Example:
 {
-  "subject": "GK",
-  "topic": "Indian Independence",
-  "question": "What year did India gain independence?",
-  "options": {"a": "1945", "b": "1947", "c": "1950", "d": "1952"},
+  "subject": "General Awareness",
+  "topic": "Freedom Struggle",
+  "question": "In which year was the Quit India Movement launched?",
+  "options": {"a": "1940", "b": "1942", "c": "1944", "d": "1945"},
   "correctAns": "b",
-  "explanation": "India gained independence on August 15, 1947.",
+  "explanation": "The Quit India Movement was launched by Mahatma Gandhi on August 8, 1942.",
   "difficulty": "EASY"
 }
 
 Now generate exactly ${count} questions as a JSON array:`;
-
     const validated: Question[] = [];
     const failed: any[] = [];
     try {
@@ -56,31 +72,58 @@ Now generate exactly ${count} questions as a JSON array:`;
             return [];
         }
 
-        for (const q of parsed) {
+        let rawQuestionsForGemini: Record<number, {
+            question: string;
+            options: Question['options'];
+            correctAns: string;
+        }> = {};
+
+        for (let i = 0; i < parsed.length; i++) {
+            rawQuestionsForGemini[i] = {
+                question: parsed[i].question,
+                options: parsed[i].options,
+                correctAns: parsed[i].correctAns,
+            }
+        }
+
+        const auditResult: number[] = await auditGeneratedQuestions(rawQuestionsForGemini); //audit result will be expecting a array of faild questions index
+
+
+        for (let i = 0; i < parsed.length; i++) {
             try {
-                const valid = QuestionSchema.parse(q);
-                const answerIs = await auditGeneratedQuestions(valid);
-                console.log("gemini' judgemnet", answerIs);
-                if (answerIs === "PASS") {
+                const valid = QuestionSchema.parse(parsed[i]);
+                if (!auditResult.includes(i)) {
                     validated.push(valid);
+                    await db.insert(questions).values({
+                        subject: valid.subject,
+                        topic: valid.topic,
+                        question: valid.question,
+                        options: valid.options,
+                        correctAns: valid.correctAns,
+                        explanation: valid.explanation,
+                        difficulty: valid.difficulty,
+                        status: "VETTED",
+                        hash: crypto.createHash('sha256').update(valid.question).digest('hex'),
+                    }).onConflictDoNothing();
                 } else {
                     failed.push(valid);
                 }
-                console.log("Vetted ration", (failed.length / validated.length) * 100 + "%")
             } catch (err) {
-                console.log("Question validation failed", q, err);
-                failed.push(q);
+                console.log("Question validation failed", parsed[i], err);
+                failed.push(parsed[i]);
             }
         }
-    } catch (err) {
+        console.log(`Vetted ratio: ${(validated.length / parsed.length) * 100}% passed`);
+    } catch (err: any) {
+        if (err?.message === 'GEMINI_QUOTA_EXCEEDED') {
+            throw err;
+        }
+
+        if (err?.status === 429 || err?.message?.includes('Rate limit')) {
+            throw new Error('GROQ_RATE_LIMIT_EXCEEDED');
+        }
         console.log("Groq API failed:", err);
         return [];
     }
     return validated;
 }
-
-(async () => {
-    const questions = await generateBatch("Math", 20);
-    console.log(JSON.stringify(questions, null, 2));
-    console.log("questionlength", questions.length);
-})();
