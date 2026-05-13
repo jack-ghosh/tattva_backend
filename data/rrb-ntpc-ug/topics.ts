@@ -30,7 +30,7 @@ export const topics: { subject: string; topic: string }[] = [
     { subject: "Reasoning", topic: "Analytical Reasoning" },
     { subject: "Reasoning", topic: "Syllogism" },
     { subject: "Reasoning", topic: "Jumbling" },
-    { subject: "Reasoning", topic: "Venn Diagrams" },
+    { subject: "Reasoning", topic: "Venn Diagrams" },//till done
     { subject: "Reasoning", topic: "Puzzle" },
     { subject: "Reasoning", topic: "Data Sufficiency" },
     { subject: "Reasoning", topic: "Statement and Conclusion" },

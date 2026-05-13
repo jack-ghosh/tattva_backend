@@ -1,4 +1,5 @@
-import gemini from "../lib/gemini";
+import { getActiveGeminiKey, exhaustGeminiKey } from "../lib/providers.js";
+import { GoogleGenAI } from '@google/genai';
 
 type QuestionBatch = Record<number, {
     question: string,
@@ -6,6 +7,27 @@ type QuestionBatch = Record<number, {
     correctAns: string,
 }>;
 
+
+async function generateWithFallBack(prompt: string): Promise<string> {
+    while (true) {
+        const apiKey = getActiveGeminiKey();
+        try {
+            const geminiClient = new GoogleGenAI({ apiKey });
+            const response = await geminiClient.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+
+            return response.text?.trim() ?? "";
+        } catch (err: any) {
+            if (err?.status === 429) {
+                exhaustGeminiKey(apiKey);
+                continue;
+            }
+            throw err;
+        }
+    }
+}
 export async function auditGeneratedQuestions(questions: QuestionBatch): Promise<number[]> {
     const indices = Object.keys(questions).map(Number);
     const count = indices.length;
@@ -35,12 +57,7 @@ STRICT OUTPUT RULES:
 Your answer array:`;
 
     try {
-        const response = await gemini.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-
-        const raw = response.text?.trim() ?? "";
+        const raw = await generateWithFallBack(prompt)
         const cleaned = raw.replace(/```json|```/g, "").trim();
 
         let geminiAnswers: string[];
@@ -52,8 +69,11 @@ Your answer array:`;
         }
 
         if (geminiAnswers.length !== count) {
-            console.log(`length mismatch expected:${count}, got ${geminiAnswers.length}`);
-            return [];
+            console.log(`length mismatch expected:${count}, got ${geminiAnswers.length} - padding missing as failed`);
+            while (geminiAnswers.length < count) {
+                geminiAnswers.push("__missing__");
+            }
+            geminiAnswers = geminiAnswers.slice(0, count);
         }
 
         const failedIndices: number[] = [];
@@ -69,7 +89,7 @@ Your answer array:`;
         console.log(`Audit completed: ${count - failedIndices.length} Passed and ${failedIndices.length} Failed`);
         return failedIndices;
     } catch (err: any) {
-        if (err?.status === 429 || err?.message?.includes('429')) {
+        if (err?.message === 'GEMINI_ALL_KEYS_EXHAUSTED') {
             throw new Error('GEMINI_QUOTA_EXCEEDED');
         }
         console.log("Gemini API failed", err);

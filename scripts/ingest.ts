@@ -2,9 +2,10 @@ import { topics } from "../data/rrb-ntpc-ug/topics";
 import { generateQuestionBatch } from "../services/pipeline";
 
 (async () => {
-    let processed = 0;
+    let processed = 41;
+    //resononing 12 topics done math have to recheck
 
-    for (const { subject, topic } of topics) {
+    for (const { subject, topic } of topics.slice(41)) {
         try {
             console.log(`[${processed + 1}/${topics.length}] Generating: ${subject} → ${topic}`);
             await generateQuestionBatch(topic, 25, subject);

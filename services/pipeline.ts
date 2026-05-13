@@ -1,9 +1,33 @@
-import groq from "../lib/groq";
+import Groq from "groq-sdk";
 import crypto from 'crypto';
 import { db } from "../lib/db";
 import { questions } from "../lib/schema.js";
 import { QuestionSchema, type Question } from "../types/question";
 import { auditGeneratedQuestions } from "./auditor";
+import { getActiveGroqKey, exhaustGroqKey } from "../lib/providers.js";
+
+async function generateWithFallBack(prompt: string): Promise<string> {
+    while (true) {
+        const apiKey = getActiveGroqKey();
+        try {
+            const groqClient = new Groq({ apiKey });
+            const response = await groqClient.chat.completions.create({
+                model: "llama-3.3-70b-versatile",
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7,
+                max_tokens: 8000,
+            });
+
+            return response.choices[0].message.content || "";
+        } catch (err: any) {
+            if (err?.status === 429) {
+                exhaustGroqKey(apiKey);
+                continue;
+            }
+            throw err;
+        }
+    }
+}
 
 export async function generateQuestionBatch(
     topic: string,
@@ -41,17 +65,11 @@ Example:
 }
 
 Now generate exactly ${count} questions as a JSON array:`;
+
     const validated: Question[] = [];
     const failed: any[] = [];
     try {
-        const response = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.7,
-            max_tokens: 8000,
-        });
-
-        const content = response.choices[0].message.content || "";
+        const content = await generateWithFallBack(prompt);
 
         let jsonString = content.trim();
         if (jsonString.startsWith("```json")) {
@@ -115,15 +133,11 @@ Now generate exactly ${count} questions as a JSON array:`;
         }
         console.log(`Vetted ratio: ${(validated.length / parsed.length) * 100}% passed`);
     } catch (err: any) {
-        if (err?.message === 'GEMINI_QUOTA_EXCEEDED') {
-            throw err;
-        }
-
-        if (err?.status === 429 || err?.message?.includes('Rate limit')) {
-            throw new Error('GROQ_RATE_LIMIT_EXCEEDED');
-        }
-        console.log("Groq API failed:", err);
+        if (err?.message === 'GEMINI_QUOTA_EXCEEDED') throw err;
+        if (err?.message === 'GROQ_ALL_KEYS_EXHAUSTED') throw err; // add this
+        console.log("Pipeline failed:", err);
         return [];
+
     }
     return validated;
 }
