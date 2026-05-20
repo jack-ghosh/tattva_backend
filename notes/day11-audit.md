@@ -1,0 +1,8 @@
+- [x] buildExam.ts fixed
+- [x] GET /api/exam response shape correct
+- [x] POST /api/exam/submit created
+- [x] GET /api/exam/results created
+- [x] GET /api/attempts created
+- [ ] pgvector setup done
+- [ ] vectorStore.ts skeleton created
+- [ ] Auth endpoints verified
