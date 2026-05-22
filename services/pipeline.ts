@@ -5,6 +5,7 @@ import { questions } from "../lib/schema.js";
 import { QuestionSchema, type Question } from "../types/question";
 import { auditGeneratedQuestions } from "./auditor";
 import { getActiveGroqKey, exhaustGroqKey } from "../lib/providers.js";
+import retriveContext from "./rag";
 
 async function generateWithFallBack(prompt: string): Promise<string> {
     while (true) {
@@ -34,7 +35,11 @@ export async function generateQuestionBatch(
     count: number = 25,
     subject: string = "General"
 ): Promise<Question[]> {
+    const context = await retriveContext(topic, 20);
     const prompt = `You are an expert question setter for the RRB NTPC UG (Railway Recruitment Board Non-Technical Popular Categories Undergraduate) competitive exam in India.
+Based on this curriculum content:
+
+${context}
 
 Generate exactly ${count} multiple choice questions for the topic: "${topic}" under the subject: "${subject}".
 
