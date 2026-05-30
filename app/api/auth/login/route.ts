@@ -47,7 +47,8 @@ export const POST = async (request: NextRequest) => {
             mobileNumber: user.mobileNumber,
             role: user.role,
         });
-    } catch {
-        return NextResponse.json({ error: "Invalid input" }, { status: 400 });
-    }
+    } catch (error) {
+  console.error('Login error:', error)
+  return NextResponse.json({ error: "Invalid input" }, { status: 400 })
+}
 };
