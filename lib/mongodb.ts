@@ -5,12 +5,17 @@ const connectionString: string | undefined = process.env.MONGODB_URI
 
 export async function connectToMongodb() {
     if (!connectionString) {
-        throw new Error("DATABASE_URL not set");
+        throw new Error("MONGODB_URI not set");
     }
-    await mongoose.connect(
-        connectionString
-    );
-    console.log("Connected to mongodb");
+    if (mongoose.connection.readyState >= 1) return;
+    try {
+        await mongoose.connect(connectionString, {
+            // shorten timeout for faster failure when networking/whitelist blocks access
+            serverSelectionTimeoutMS: 10000,
+        });
+        console.log("Connected to mongodb");
+    } catch (err) {
+        console.error("Error connecting to MongoDB:", err);
+        throw err;
+    }
 }
-
-connectToMongodb();

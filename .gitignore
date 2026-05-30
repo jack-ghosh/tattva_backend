@@ -41,4 +41,18 @@ yarn-error.log*
 next-env.d.ts
 
 #seed
-scripts/seed.js
+/scripts
+/data
+/notes
+
+# large data files
+/parsed_questions.json
+/raw_output.txt
+/tattva_backend.zip
+/lib/test-ollama.ts
+# test files
+/test-db.ts
+
+# agent/claude config
+AGENTS.md
+CLAUDE.md

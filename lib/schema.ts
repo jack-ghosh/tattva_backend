@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, uuid, jsonb, char, timestamp, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, uuid, jsonb, char, timestamp, customType,unique } from "drizzle-orm/pg-core";
 import type { Question } from "../types/question";
 
 const vector = customType<{ data: number[] }>({
@@ -25,7 +25,10 @@ export const questions = pgTable('question', {
 export const users = pgTable('users', {
     id: uuid('id').defaultRandom().primaryKey(),
     displayName: varchar('displayName', { length: 40 }).notNull(),
-    username: varchar('username', { length: 40 }).notNull(),
+    username: varchar('username', { length: 40 }).notNull().unique(),
+    mobileNumber: varchar('mobileNumber', { length: 15 }).unique(),
+    hashPassword: text('hashPassword').notNull(),
+    role:varchar('role', { length: 20 }).notNull().default('STUDENT'),
     createdAt: timestamp('created_at').defaultNow(),
 });
 

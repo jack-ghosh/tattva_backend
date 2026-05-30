@@ -1,15 +1,17 @@
 import { NextResponse, NextRequest } from "next/server";
 import TestAttempt from "../../../lib/models/TestAttempt";
+import { connectToMongodb } from "@/lib/mongodb";
 
-async function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
     try {
+        await connectToMongodb()
         const userId = request.nextUrl.searchParams.get("userId");
         if (!userId) {
             return NextResponse.json({
                 success: false,
                 error: "User Id is required",
             }, {
-                status: 400,
+                status: 400
             })
         }
 
@@ -38,7 +40,7 @@ async function GET(request: NextRequest) {
             success: false,
             error: error instanceof Error ? error.message : "Unknown server error",
         }, {
-            status: 500,
+            status: 500
         })
     }
 }
