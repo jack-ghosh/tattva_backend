@@ -44,7 +44,7 @@ export const buildExamQuestion = async (examType: ExamType) => {
     const config = EXAM_CONFIG[examType];
 
     // Using VETTED for testing — change to "ACTIVE" for production
-    const STATUS = "VETTED";
+    const STATUS = "ACTIVE";
 
     const [easyQuestions, mediumQuestions, hardQuestions] = await Promise.all([
         db.select()

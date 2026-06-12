@@ -8,5 +8,5 @@ if (!connectionString) {
     throw new Error("DATABASE_URL not set");
 }
 
-const client = new Pool({ connectionString });
+const client = new Pool({ connectionString ,max:1});
 export const db = drizzle(client);

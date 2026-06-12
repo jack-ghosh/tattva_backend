@@ -6,3 +6,9 @@ const gemini = new GoogleGenAI({
 });
 
 export default gemini;
+
+// tsx -e "
+// fetch('https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY')
+//   .then(r => r.json())
+//   .then(d => d.models.forEach(m => console.log(m.name)))
+// "

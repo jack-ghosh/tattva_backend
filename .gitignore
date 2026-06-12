@@ -50,6 +50,10 @@ next-env.d.ts
 /raw_output.txt
 /tattva_backend.zip
 /lib/test-ollama.ts
+/audited_questions.json
+/questions_from_Claude.json
+/questions.json
+
 # test files
 /test-db.ts
 

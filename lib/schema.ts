@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, uuid, jsonb, char, timestamp, customType,unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, uuid, jsonb, char, timestamp, customType,unique, real, boolean } from "drizzle-orm/pg-core";
 import type { Question } from "../types/question";
 
 const vector = customType<{ data: number[] }>({
@@ -20,6 +20,16 @@ export const questions = pgTable('question', {
     hash: text('hash').unique(),
     embedding: vector('embedding'),
     createdAt: timestamp('created_at').defaultNow(),
+
+        // ── PYQ fields (all nullable — existing rows unaffected) ──
+    subtopic: varchar('subtopic', { length: 150 }),
+    difficultyScore: real('difficulty_score'),        // 0.0–1.0 float
+    isPyq: boolean('is_pyq').default(false),
+    sourceRaw: text('source_raw'),
+    examType: varchar('exam_type', { length: 50 }),
+    examStage: varchar('exam_stage', { length: 20 }),
+    examDate: varchar('exam_date', { length: 20 }),
+    examShift: varchar('exam_shift', { length: 20 }),
 });
 
 export const users = pgTable('users', {
