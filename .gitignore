@@ -41,7 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 #seed
-/scripts
 /data
 /notes
 
@@ -53,6 +52,10 @@ next-env.d.ts
 /audited_questions.json
 /questions_from_Claude.json
 /questions.json
+/AUDITED_QUESTIONS
+/PARSED_QUESTIONS
+/RAW_OUTPUT_FROM_PDF
+
 
 # test files
 /test-db.ts

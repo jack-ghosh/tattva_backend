@@ -7,7 +7,7 @@
 
 import fs from "fs";
 import "dotenv/config";
-import { getActiveGeminiKey, exhaustGeminiKey } from "../lib/providers";
+import { getActiveGeminiKey, exhaustGeminiKey, getGeminiKeyName  } from "../lib/providers";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,27 +48,26 @@ interface GeminiAuditResult {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const GEMINI_MODEL         = "gemini-3.1-flash-lite";
-const DELAY_MS             = 5000;
-const DIFFICULTY_THRESHOLD = 0.0;
-const FLUSH_EVERY          = 10;   // write to disk every N questions
+const GEMINI_MODEL = "gemini-3.1-flash-lite";
+const DELAY_MS     = 5000;
+const FLUSH_EVERY  = 10;   // write to disk every N questions
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 // ── Gemini call ───────────────────────────────────────────────────────────────
 
-// attempt   = 429 key-rotation counter (max 2 = number of keys)
-// retryCount = transient error retry counter (503, ECONNRESET, etc.)
 async function auditWithGemini(
   q: Question,
   attempt = 0,
   retryCount = 0
 ): Promise<GeminiAuditResult | null | "KEYS_EXHAUSTED"> {
-  if (attempt >= 2) return "KEYS_EXHAUSTED";
+  // if (attempt >= 2) return "KEYS_EXHAUSTED";
 
   let apiKey: string;
+  let keyLabel: string;
   try {
-    apiKey = getActiveGeminiKey();
+    apiKey   = getActiveGeminiKey();
+    keyLabel = getGeminiKeyName(apiKey); // → "gemini_1", "gemini_2", etc.
   } catch {
     return "KEYS_EXHAUSTED";
   }
@@ -87,10 +86,10 @@ Your tasks:
 3. If the question/options/explanation are already clean, return them unchanged.
 
 Difficulty scale (for Indian graduation-level competitive exam students):
-- 0.0–0.3: too basic, direct formula recall, single step
-- 0.3–0.55: standard exam level, 1-2 steps, concept application
+- 0.0–0.3  : too basic, direct formula recall, single step
+- 0.3–0.55 : standard exam level, 1-2 steps, concept application
 - 0.55–0.75: moderate difficulty, multi-step, requires solid understanding
-- 0.75–1.0: hard, tricky logic, multi-concept, or complex calculation
+- 0.75–1.0 : hard, tricky logic, multi-concept, or complex calculation
 
 Return ONLY a raw JSON object — no markdown, no backticks, no explanation outside the JSON:
 {
@@ -114,25 +113,24 @@ Return ONLY a raw JSON object — no markdown, no backticks, no explanation outs
     });
 
     if (res.status === 429) {
-      console.log(`\n  ⚠️  429 on key ...${apiKey.slice(-6)} — exhausting, trying next key`);
+      console.log(`\n  ⚠️  429 on ${keyLabel} — exhausting, trying next key`);
       exhaustGeminiKey(apiKey);
       return auditWithGemini(q, attempt + 1, retryCount);
     }
 
-    // Transient server errors — backoff and retry (max 3 times)
     if (res.status === 503 || res.status === 502 || res.status === 500) {
       if (retryCount >= 3) {
-        console.error(`\n  ⚠️  ${res.status} after 3 retries — skipping`);
+        console.error(`\n  ⚠️  ${res.status} after 3 retries on ${keyLabel} — skipping`);
         return null;
       }
       const wait = (retryCount + 1) * 8000; // 8s, 16s, 24s
-      console.log(`\n  ⚠️  ${res.status} — retrying in ${wait / 1000}s (attempt ${retryCount + 1}/3)`);
+      console.log(`\n  ⚠️  ${res.status} on ${keyLabel} — retrying in ${wait / 1000}s (attempt ${retryCount + 1}/3)`);
       await sleep(wait);
       return auditWithGemini(q, attempt, retryCount + 1);
     }
 
     if (!res.ok) {
-      console.error(`\n  API error ${res.status}:`, (await res.text()).slice(0, 200));
+      console.error(`\n  API error ${res.status} on ${keyLabel}:`, (await res.text()).slice(0, 200));
       return null;
     }
 
@@ -142,15 +140,17 @@ Return ONLY a raw JSON object — no markdown, no backticks, no explanation outs
     return JSON.parse(cleaned) as GeminiAuditResult;
 
   } catch (err: any) {
-    // ECONNRESET / network blip — retry with backoff
-    const isTransient = err?.code === 'ECONNRESET' || err?.code === 'ECONNREFUSED' || err?.cause?.code === 'ECONNRESET';
+    const isTransient =
+      err?.code === "ECONNRESET" ||
+      err?.code === "ECONNREFUSED" ||
+      err?.cause?.code === "ECONNRESET";
     if (isTransient && retryCount < 3) {
       const wait = (retryCount + 1) * 8000;
-      console.log(`\n  ⚠️  ${err?.cause?.code ?? err?.code} — retrying in ${wait / 1000}s (attempt ${retryCount + 1}/3)`);
+      console.log(`\n  ⚠️  ${err?.cause?.code ?? err?.code} on ${keyLabel} — retrying in ${wait / 1000}s (attempt ${retryCount + 1}/3)`);
       await sleep(wait);
       return auditWithGemini(q, attempt, retryCount + 1);
     }
-    console.error(`\n  Parse/fetch error:`, err);
+    console.error(`\n  Parse/fetch error on ${keyLabel}:`, err);
     return null;
   }
 }
@@ -176,12 +176,12 @@ async function processQuestion(
     return {
       ...q,
       difficulty: -1,
-      corrected_question: null,
-      corrected_options: null,
+      corrected_question:    null,
+      corrected_options:     null,
       corrected_explanation: null,
-      audit_issues: "API call failed",
-      audit_status: "error",
-      status: "PENDING",
+      audit_issues:  "API call failed",
+      audit_status:  "error",
+      status:        "ACTIVE",  // no concept of failing — still ACTIVE
     };
   }
 
@@ -215,41 +215,42 @@ async function processQuestion(
 
 function printSummary(results: AuditedQuestion[]) {
   const valid     = results.filter(r => r.difficulty >= 0);
-  const passed    = valid.filter(r => r.status === "ACTIVE");
-  const failed    = valid.filter(r => r.status === "FAILED");
   const errors    = results.filter(r => r.audit_status === "error");
   const corrected = valid.filter(r => r.audit_status === "corrected");
+  const clean     = valid.filter(r => r.audit_status === "ok");
 
   const avg = valid.length
     ? (valid.reduce((s, r) => s + r.difficulty, 0) / valid.length).toFixed(3)
     : "N/A";
 
-const buckets: Record<string, number> = {
-  "0.0–0.3  (EASY)   ": 0,
-  "0.3–0.55 (MEDIUM) ": 0,
-  "0.55–0.75(HARD)   ": 0,
-  "0.75–1.0 (VERY HARD)": 0,
-};
+  // Bucket keys must match what we increment below
+  const buckets: Record<string, number> = {
+    "0.0–0.3  (EASY)     ": 0,
+    "0.3–0.55 (MEDIUM)   ": 0,
+    "0.55–0.75(HARD)     ": 0,
+    "0.75–1.0 (VERY HARD)": 0,
+  };
+
   valid.forEach(r => {
-    if      (r.difficulty < 0.3)  buckets["0.0–0.3  (FAILED)"]++;
-    else if (r.difficulty < 0.55) buckets["0.3–0.55 (EASY)  "]++;
-    else if (r.difficulty < 0.75) buckets["0.55–0.75(MEDIUM)"]++;
-    else                          buckets["0.75–1.0 (HARD)  "]++;
+    if      (r.difficulty < 0.3)  buckets["0.0–0.3  (EASY)     "]++;
+    else if (r.difficulty < 0.55) buckets["0.3–0.55 (MEDIUM)   "]++;
+    else if (r.difficulty < 0.75) buckets["0.55–0.75(HARD)     "]++;
+    else                          buckets["0.75–1.0 (VERY HARD)"]++;
   });
 
   console.log("\n══════════════════════════════════════════");
   console.log("  AUDIT SUMMARY");
   console.log("══════════════════════════════════════════");
-  console.log(`  Total      : ${results.length}`);
-  console.log(`  ✅ ACTIVE  : ${passed.length}`);
-  console.log(`  🔴 FAILED  : ${failed.length}`);
-  console.log(`  ❌ Errors  : ${errors.length}`);
+  console.log(`  Total       : ${results.length}`);
+  console.log(`  ✅ ACTIVE   : ${results.length - errors.length}`);
+  console.log(`  ❌ Errors   : ${errors.length}  (kept as ACTIVE, difficulty=-1)`);
   console.log(`  🔧 Corrected: ${corrected.length}`);
-  console.log(`  Avg score  : ${avg}`);
-  console.log("\n  Distribution:");
+  console.log(`  ✨ Clean    : ${clean.length}`);
+  console.log(`  Avg score   : ${avg}`);
+  console.log("\n  Difficulty Distribution:");
   Object.entries(buckets).forEach(([range, count]) => {
     const bar = "█".repeat(Math.round(count / 2));
-    console.log(`    ${range}: ${String(count).padStart(3)}  ${bar}`);
+    console.log(`    ${range}: ${String(count).padStart(4)}  ${bar}`);
   });
   console.log("══════════════════════════════════════════\n");
 }
@@ -268,17 +269,19 @@ async function main() {
   const allQuestions: Question[] = JSON.parse(fs.readFileSync(inputPath, "utf-8"));
 
   // ── Resume: load already-done results ──────────────────────────────────────
-let doneResults: AuditedQuestion[] = [];
-const doneKeys = new Set<string>();
-if (fs.existsSync(outputPath)) {
-  doneResults = JSON.parse(fs.readFileSync(outputPath, "utf-8"));
-  doneResults.forEach(r => doneKeys.add(`${r.number}::${r.question.slice(0, 40)}`));
-  console.log(`\n♻️  Resuming — ${doneKeys.size} already done, skipping them`);
-}
-const remaining = allQuestions.filter(q => !doneKeys.has(`${q.number}::${q.question.slice(0, 40)}`));
+  let doneResults: AuditedQuestion[] = [];
+  const doneKeys = new Set<string>();
+  if (fs.existsSync(outputPath)) {
+    doneResults = JSON.parse(fs.readFileSync(outputPath, "utf-8"));
+    doneResults.forEach(r => doneKeys.add(`${r.number}::${r.question.slice(0, 40)}`));
+    console.log(`\n♻️  Resuming — ${doneKeys.size} already done, skipping them`);
+  }
+  const remaining = allQuestions.filter(
+    q => !doneKeys.has(`${q.number}::${q.question.slice(0, 40)}`)
+  );
 
   console.log(`\n📋 Total: ${allQuestions.length} | Done: ${doneKeys.size} | Remaining: ${remaining.length}`);
-  console.log(`🤖 Model: ${GEMINI_MODEL} | Delay: ${DELAY_MS}ms | Threshold: ${DIFFICULTY_THRESHOLD}\n`);
+  console.log(`🤖 Model: ${GEMINI_MODEL} | Delay: ${DELAY_MS}ms\n`);
 
   if (remaining.length === 0) {
     console.log("✅ All questions already audited.");

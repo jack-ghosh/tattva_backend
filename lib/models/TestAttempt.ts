@@ -10,7 +10,11 @@ interface IResponse {
 interface ITestAttempt extends Document {
     userId: string;
     examId: string;
-    examType: "15MIN" | "30MIN" | "RRB";
+    examType: "15MIN" | "MOCK_MINI" | "MOCK_MAIN";
+    subject?: string;
+    topic?: string;
+    blueprintKey?: string;
+    blueprintLabel?: string;
     status: "in_progress" | "submitted" | "timed_out";
     startTime: Date;
     submittedAt?: Date;
@@ -27,7 +31,11 @@ interface ITestAttempt extends Document {
 const TestAttemptSchema = new Schema<ITestAttempt>({
     userId: { type: String, required: true },
     examId: { type: String, required: true },
-    examType: { type: String, enum: ["15MIN", "30MIN", "RRB"], default: "15MIN" },
+    examType: { type: String, enum: ["15MIN", "MOCK_MINI", "MOCK_MAIN"], default: "15MIN" },
+    subject: { type: String },
+    topic: { type: String },
+    blueprintKey: { type: String },
+    blueprintLabel: { type: String },
     status: { type: String, enum: ["in_progress", "submitted", "timed_out"], default: "in_progress" },
     startTime: { type: Date, default: Date.now },
     submittedAt: { type: Date },

@@ -15,6 +15,10 @@ const groqProviders: Provider[] = [
 const geminiProviders: Provider[] = [
     { name: 'gemini_1', apiKey: process.env.GEMINI_API_KEY_1!, exhausted: false },
     { name: 'gemini_2', apiKey: process.env.GEMINI_API_KEY_2!, exhausted: false },
+    { name: 'gemini_3', apiKey: process.env.GEMINI_API_KEY_3!, exhausted: false },
+    { name: 'gemini_4', apiKey: process.env.GEMINI_API_KEY_4!, exhausted: false },
+    { name: 'gemini_5', apiKey: process.env.GEMINI_API_KEY_5!, exhausted: false },
+    { name: 'gemini_6', apiKey: process.env.GEMINI_API_KEY_6!, exhausted: false },
 ];
 
 export function getActiveGroqKey(): string {
@@ -39,4 +43,8 @@ export function exhaustGeminiKey(apiKey: string) {
     const provider = geminiProviders.find(p => p.apiKey === apiKey);
     if (provider) provider.exhausted = true;
     console.log(`Key exhauted :${provider?.name}`);
+}
+
+export function getGeminiKeyName(apiKey: string): string {
+  return geminiProviders.find(p => p.apiKey === apiKey)?.name ?? "gemini_unknown";
 }

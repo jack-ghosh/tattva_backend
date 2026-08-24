@@ -20,6 +20,14 @@ export async function GET(request: NextRequest) {
             .limit(50)
             .lean();
 
+        const examName = (a: (typeof attempts)[number]) => {
+            if (a.examType === "15MIN") {
+                return a.topic ? `15-min ${a.subject ?? ""} — ${a.topic}` : `15-min ${a.subject ?? "Topic Test"}`;
+            }
+            const label = a.blueprintLabel ?? a.blueprintKey ?? "Mock";
+            return `${label} — ${a.examType === "MOCK_MINI" ? "Mini Mock" : "Full Mock"}`;
+        };
+
         const data = attempts.map(a => ({
             id: a._id.toString(),
             date: a.submittedAt?.toISOString() ?? new Date().toISOString(),
@@ -28,6 +36,8 @@ export async function GET(request: NextRequest) {
             correctCount: a.correctCount,
             wrongCount: a.wrongCount,
             unattempted: a.unattempted,
+            examType: a.examType,
+            examName: examName(a),
         }))
 
         return NextResponse.json({
